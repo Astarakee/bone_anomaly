@@ -46,5 +46,13 @@ The following params are optimized and may not be changed:
 "res_thr": 400  : Threshold value.
 ```
 
+Finally to run the code in the terminal, do:
+
+```
+In the main directory, within terminal, type:
+python main.py -c ./config/config.json
+
+```
+
 ## The model checkpoints can be downloaded from the following link:
 (https://drive.google.com/file/d/1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr/view?usp=sharing)
