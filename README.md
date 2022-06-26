@@ -47,4 +47,4 @@ The following params are optimized and may not be changed:
 ```
 
 ## The model checkpoints can be downloaded from the following link:
-XXXX
+(https://drive.google.com/file/d/1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr/view?usp=sharing)
