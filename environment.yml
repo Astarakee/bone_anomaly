@@ -1,0 +1,19 @@
+name: pelvis_unsupervised_anomaly
+channels:
+  - tensorflow
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9.0
+  - pip
+  - cudatoolkit=10.1.243
+  - tensorflow-gpu==2.4.1
+  - matplotlib==3.4.3
+  - opencv
+  - pandas==1.4.1
+  - scipy==1.6.2
+  - SimpleITK==2.1
+variables:
+  DATAROOT: /home/datasets/
+prefix: ~/miniconda3/envs/pelvis_anomaly

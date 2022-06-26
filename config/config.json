@@ -1,0 +1,11 @@
+{
+    "nifti_dir": "PathToNiftiFiles/",
+    "write_path_img": "./data/data_2d/image/",
+    "write_path_map": "./data/data_2d/map/",
+    "write_path_results": "./data/results/",
+    "exp_name": "pelvis_anomaly_field_map",
+    "checkpoint_dir": "PathToModelCheckPoints",
+    "n_slice": "70",
+    "step_size": 1,
+    "res_thr": 400
+}
