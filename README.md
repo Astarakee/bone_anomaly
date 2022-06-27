@@ -41,12 +41,9 @@ There exist also some other optional inputs that may not be changed. The current
 "step_size": 1  : The step size between the slices.
 "res_thr": 400  : Threshold value.
 ```
-"nifti_dir": "PathToNiftiFiles/" : This should be the directory to the Nifti volumes.
-"checkpoint_dir": "PathToModelCheckPoints": This should be the directory to the model weights.
-"exp_name": "pelvis_anomaly_field_map": A name for the experiments.
-```
 
-The following params defines where the image data, logs and result summary to be stored:
+
+The following optional params defines where the image data, logs and result summary to be stored:
 
 ```
 "write_path_img": "./data/data_2d/image/" :  Dir to store the 2D preprocessed slices.
@@ -54,15 +51,12 @@ The following params defines where the image data, logs and result summary to be
 "write_path_results": "./data/results/"   :  Dir to store the final results. This will include the inpainted images, logs of details, and the final .csv file to present the class labels of predictions.
 ```
 
-The following params are optimized and may not be changed:
-
-
 
 Finally to run the code in the terminal, do:
 
 ```
 In the main directory, within terminal, type:
-python main.py -c ./config/config.json
+python main.py --input_dir 'dir to nifti data'
 
 ```
 
