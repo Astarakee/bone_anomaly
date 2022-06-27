@@ -5,7 +5,7 @@
 Clone the git project:
 
 ```
-$ git clone https://github.com/FeliMe/brain_sas_baseline.git
+$ https://github.com/Astarakee/bone_anomaly.git
 ```
 
 Create a virtual environment and install the requirements:
@@ -22,7 +22,19 @@ $ conda activate pelvis_unsupervised_anomaly
 
 ## Usage:
 
-Change the following items in the config file "./config/config.json"
+In the main directory type
+
+```
+python main.py -h
+```
+This will return the list of argument that are required by the user.
+Mandatory input is:
+
+```
+"--input_dir" : the directory to the input nifti volumes that are going to be processed and analyzed.
+
+```
+
 
 ```
 "nifti_dir": "PathToNiftiFiles/" : This should be the directory to the Nifti volumes.
