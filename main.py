@@ -7,28 +7,41 @@ from libs.autoinpaint import auto_inpaint, detection
 from libs.paths_dirs_stuff import creat_dir, get_data_list 
 
 
-# Parse input arguments
-parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", help="Config path")
+
+
+
+parser = argparse.ArgumentParser(description='Pelvis Bone Anomaly with Autoinpainting')
+parser.add_argument('--input_dir', type=str, help='Input directory to the nifti volumes', required=True)
+parser.add_argument('--checkpoint_dir', default="./checkpoint", type=str, help='Directory to load model weights',required=True)
+parser.add_argument('--write_path_img', default="./data", type=str, help='Output directory to the 2D images', required=False)
+parser.add_argument('--write_path_map', default="./data", type=str, help='Output directory to the 2D images', required=False)
+parser.add_argument('--write_path_results', default="./data", type=str, help='Output directory to store the results', required=False)
+parser.add_argument('--exp_name', default="Pelvis_Anomaly", type=str, help='Output directory to the 2D images',  required=False)
+parser.add_argument('--n_slice', default="70", type=str, help="number of slices to be analized: either 'all' or an 'integer' ", required=False)
+parser.add_argument('--step_size', default=1, type=int, help="interval between slices",  required=False)
+parser.add_argument('--res_thr', default=400, type=int, help="threshold value",  required=False)
 args = parser.parse_args()
-configs = load_json(args.config)
+
 
 
 # set variables
-nifti_dir = configs['nifti_dir']
-write_path_img = configs['write_path_img']
-write_path_map = configs['write_path_map']
-write_path_results = configs['write_path_results']
-exp_name = configs['exp_name']
-checkpoint_dir = configs['checkpoint_dir']
-n_slice = configs['n_slice']
-step_size = configs['step_size']
-res_thr = configs['res_thr']
+nifti_dir = args.input_dir
+write_path_img = args.write_path_img
+write_path_map = args.write_path_map
+write_path_results = args.write_path_results
+exp_name = args.exp_name
+checkpoint_dir = args.checkpoint_dir
+n_slice = args.n_slice
+step_size = args.step_size
+res_thr = args.res_thr
 
 
 
 
 # set fixed params
+write_path_img = os.path.join(write_path_img, 'data_2d/image')
+write_path_map = os.path.join(write_path_map, 'data_2d/map')
+write_path_results = os.path.join(write_path_results, 'results')
 min_bound_img = -300
 max_bound_img = 700
 img_dim1 = 256
