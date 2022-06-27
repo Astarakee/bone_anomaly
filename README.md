@@ -62,3 +62,14 @@ python main.py --input_dir 'dir to nifti data'
 
 ## The model checkpoints can be downloaded from the following link:
 (https://drive.google.com/file/d/1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr/view?usp=sharing)
+
+
+# Run Inference on Docker Container
+
+To build the docker image, run the following command inside the repo: 
+
+`docker build . -t bone-anomaly`
+
+And then: 
+
+`docker run bone-anomaly -v INPUT_FOLDER:/input -v OUTPUT_FOLDER:/data`
