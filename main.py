@@ -12,7 +12,7 @@ from libs.paths_dirs_stuff import creat_dir, get_data_list
 
 parser = argparse.ArgumentParser(description='Pelvis Bone Anomaly with Autoinpainting')
 parser.add_argument('--input_dir', type=str, help='Input directory to the nifti volumes', required=True)
-parser.add_argument('--checkpoint_dir', default="./checkpoint", type=str, help='Directory to load model weights',required=True)
+parser.add_argument('--checkpoint_dir', default="./checkpoint", type=str, help='Directory to load model weights',required=False)
 parser.add_argument('--write_path_img', default="./data", type=str, help='Output directory to the 2D images', required=False)
 parser.add_argument('--write_path_map', default="./data", type=str, help='Output directory to the 2D images', required=False)
 parser.add_argument('--write_path_results', default="./data", type=str, help='Output directory to store the results', required=False)
