@@ -27,15 +27,19 @@ In the main directory type
 ```
 python main.py -h
 ```
-This will return the list of argument that are required by the user.
+This will return the list of arguments that are required by the user.
 Mandatory input is:
 
 ```
 "--input_dir" : the directory to the input nifti volumes that are going to be processed and analyzed.
 
+
+There exist also some other optional inputs that may not be changed. The current values are the optial ones.
+
 ```
-
-
+"n_slice": "70" : The slices to be analyzed.
+"step_size": 1  : The step size between the slices.
+"res_thr": 400  : Threshold value.
 ```
 "nifti_dir": "PathToNiftiFiles/" : This should be the directory to the Nifti volumes.
 "checkpoint_dir": "PathToModelCheckPoints": This should be the directory to the model weights.
@@ -52,11 +56,7 @@ The following params defines where the image data, logs and result summary to be
 
 The following params are optimized and may not be changed:
 
-```
-"n_slice": "70" : The slices to be analyzed.
-"step_size": 1  : The step size between the slices.
-"res_thr": 400  : Threshold value.
-```
+
 
 Finally to run the code in the terminal, do:
 
