@@ -32,7 +32,7 @@ Mandatory input is:
 
 ```
 "--input_dir" : the directory to the input nifti volumes that are going to be processed and analyzed.
-
+```
 
 There exist also some other optional inputs that may not be changed. The current values are the optial ones.
 
