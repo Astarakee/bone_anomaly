@@ -6,25 +6,9 @@ from libs.img_utils import load_img_array
 from libs.paths_dirs_stuff import get_data_list, get_sub_dirs
 
 
-orig_img_path = './data/data_2d/image/'
-inpaint_img_root = './data/results/'
-exp_name = 'pelvis_anomaly_field_map'
-inpaint_img_path = os.path.join(inpaint_img_root, exp_name)
-summary_csv_name = 'summary_preds.csv'
-summary_csv_path = os.path.join(inpaint_img_path, summary_csv_name)
 
 
-orig_subjects = get_sub_dirs(orig_img_path)[1:]
-inpaint_subjects = get_sub_dirs(inpaint_img_path)[1:]
-
-
-
-
-
-res_thr = 400
-
-
-def detection(orig_subjects, inpaint_subjects, res_thr):
+def detection(orig_subjects, inpaint_subjects, res_thr, summary_csv_path):
     summary_dict = {}
     n_orig_subject = len(orig_subjects)
     n_inpaint_subject = len(inpaint_subjects)

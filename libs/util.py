@@ -2,6 +2,77 @@ import os
 from random import randint, seed
 import numpy as np
 import cv2
+import math
+
+
+class GridMaskGenerator():
+
+    def __init__(self, height, width, channels=3, grid_size = 32, grid_offset = None, margin = 1, rand_seed=None):
+        """Convenience functions for generating masks to be used for inpainting training
+
+        Arguments:
+            height {int} -- Mask height
+            width {width} -- Mask width
+
+        Keyword Arguments:
+            channels {int} -- Channels to output (default: {3})
+            rand_seed {[type]} -- Random seed (default: {None})
+        """
+
+        self.height = height
+        self.width = width
+        self.channels = channels
+        self.grid_size = int(grid_size)
+        self.grid_offset = grid_offset
+        step_length = grid_size*2
+        self.grid_count_x = math.ceil(width/step_length)+1
+        self.grid_count_y = math.ceil(height/step_length)+1
+        self.dilation_margin = margin
+            # Seed for reproducibility
+        if rand_seed:
+            seed(rand_seed)
+
+    def set_grid_offset(self, offset):
+        self.grid_offset = map(int, offset)
+
+    def _generate_mask(self):
+        """Generates a random irregular mask with lines, circles and elipses"""
+
+        mask_paint = np.zeros((self.height, self.width, self.channels), np.uint8)
+        mask_stich = np.zeros((self.height, self.width, self.channels), np.uint8)
+
+        # Set size scale
+        size = int((self.width + self.height) * 0.03)
+        if self.width < 64 or self.height < 64:
+            raise Exception("Width and Height of mask must be at least 64!")
+
+        # Draw random lines
+        # cv2.rectangle(image, (100, 100), (300, 250), (127, 50, 127), -1)
+        step_length = self.grid_size * 2
+        if(self.grid_offset == None):
+            grid_offset = [randint(0,step_length),randint(0,step_length)]
+        else:
+            grid_offset = list(self.grid_offset)
+        grid_offset[0] -= self.grid_size
+        grid_offset[1] -= self.grid_size
+        for y_i in range(self.grid_count_y):
+            for x_i in range(self.grid_count_x):
+                o_x = grid_offset[0] + x_i*step_length
+                o_y = grid_offset[1]  + y_i*step_length
+                pt1 = (o_x, o_y)
+                pt2 = (o_x+self.grid_size-1, o_y+self.grid_size-1)
+                cv2.rectangle(mask_stich, pt1, pt2, (1, 1, 1), -1)
+                pt1 = (o_x - self.dilation_margin, o_y - self.dilation_margin)
+                pt2 = (o_x+self.grid_size-1 + self.dilation_margin, o_y+self.grid_size-1 + self.dilation_margin)
+                cv2.rectangle(mask_paint, pt1, pt2, (1, 1, 1), -1)
+
+        return 1 - mask_paint, 1 - mask_stich
+
+    def sample(self, random_seed=None):
+        """Retrieve a random mask"""
+        if random_seed:
+            seed(random_seed)
+        return self._generate_mask()
 
 
 class MaskGenerator():

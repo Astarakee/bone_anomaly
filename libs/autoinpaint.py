@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
+from libs import self_inpaint
 from libs.tools import get_sum_int
 from scipy.ndimage import morphology
 from libs.img_utils import load_img_array
@@ -15,9 +16,70 @@ from libs.anomaly_tools import get_pred_candid, get_pred_random_masks, get_organ
 from libs.anomaly_tools import gen_random_masks_in_lung, get_candid_mask,get_circle_candids
 
 # GPU memory setting
-#physical_devices = tf.config.list_physical_devices('GPU')
-#tf.config.experimental.set_memory_growth(physical_devices[0], True)
+# physical_devices = tf.config.list_physical_devices('GPU') 
+# tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+def create_uncertainty_map(input_image, pred_imgs, mix_method):
+    diff_slice_all = []
+    for i in range(len(pred_imgs)):
+        diff_slice = pred_imgs[i] - input_image
+        diff_slice_all.append(diff_slice)
+    diff_slice_all = np.array(diff_slice_all)    
+    diff_mean = np.mean(diff_slice_all, axis=0)
+    if mix_method == 'sqrt':
+        diff_mean = np.square(diff_mean)
+        diff_mean = np.sqrt(np.sum(diff_mean, axis=-1))
+    elif mix_method == "avg":
+        diff_mean = np.mean(diff_mean, axis=-1)
+
+    diff_std = np.std(diff_slice_all, axis=0)
+    if mix_method == 'sqrt':
+        diff_std = np.square(diff_std)
+        diff_std = np.sqrt(np.sum(diff_std, axis=-1))
+    elif mix_method == "avg":
+        diff_std = np.mean(diff_std, axis=-1)
+    diff_std += np.ones(diff_std.shape) * 0.000001 #to avoid divide by zero
+    
+    return diff_mean, diff_std
+
+
+def save_normailzed_color_image(file_name, image_array, image_size):
+    image_array = image_array * 255
+    if len(image_array.shape) == 3:
+        output_array = np.flip(image_array, axis=-1)
+    else:
+        output_array = np.zeros((image_size,image_size,3))
+        output_array[..., 0] = image_array
+        output_array[..., 2] = -image_array
+    cv2.imwrite(file_name, output_array)    
+    return None
+    
+
+
+DILATION_SIZE = 3
+MaskThreshold = 16
+mask_threshold = MaskThreshold
+
+def binarize_label(inputmask, threshold_value=0.5):
+    thresholded = np.where(inputmask > threshold_value, np.uint8(1), np.uint8(0))
+    return thresholded
+
+def create_mast_from_kldist(kl_dist, threshold=30, erode=False):
+    if len(kl_dist.shape) > 2:
+        kl_dist = np.average(kl_dist, axis=-1)
+    kl_dist = np.expand_dims(kl_dist, axis=-1)
+    mask = binarize_label(kl_dist, threshold)
+    if erode is True:
+        erode_kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.erode(mask[...,0], erode_kernel, iterations=1)
+        mask = np.expand_dims(mask, axis=-1)
+    mask = np.concatenate((mask, mask, mask), axis=-1)
+    dialate_kernel = np.ones((DILATION_SIZE, DILATION_SIZE), np.uint8)
+    dialate_kernel[0, 0] = dialate_kernel[0, DILATION_SIZE - 1] = dialate_kernel[DILATION_SIZE - 1, 0] = dialate_kernel[
+        DILATION_SIZE - 1, DILATION_SIZE - 1] = 0
+    diliated = cv2.dilate(mask, dialate_kernel, iterations=1)
+    mask = 1 - diliated
+    return mask
 
 
 
@@ -26,6 +88,7 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
  
     # Set the exp name
     write_path = os.path.join(write_path_results, exp_name)
+    write_path_h_map = os.path.join(write_path_results, exp_name+'_heatmap')
         
     # Get data and load model
     img_subjects = get_sub_dirs(img_path)[1:]
@@ -49,6 +112,9 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
     
     
     
+    
+    
+    
     for ind in range(n_subjects):
         print('Anomaly detection of subject {} out of {}'.format(ind, n_subjects))
         subject_img_path = img_subjects[ind]
@@ -56,7 +122,9 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
       
         subject_name = subject_img_path.split('/')[-1]
         subject_write_dir = os.path.join(write_path, subject_name)
+        subject_h_map_dir = os.path.join(write_path_h_map, subject_name)
         creat_dir(subject_write_dir)
+        creat_dir(subject_h_map_dir)
         
         img_lists = get_data_list(subject_img_path, '.png')  
         field_map_lists = get_data_list(subject_field_path, '.png')  
@@ -81,7 +149,8 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
             organ_mask = np.repeat(organ_mask[:, :, np.newaxis], 3, axis=2).astype('float32')
     
             slice_name = subject_name+'_inpaint_'+str(slice_number)+'.png'
-    
+            slice_name_heatmap = subject_name+'_KL_avg_'+str(slice_number)+'.png'
+            path_to_heat_slice = os.path.join(subject_h_map_dir, slice_name_heatmap)
             n_top = n_top_inpaint   
             random_masks = gen_random_masks_in_lung(organ_mask, main_img, radius=rad, interval_idx = interval_idx)
             selects_ind = get_circle_candids(random_masks,main_img, n_top_circle_select)
@@ -97,8 +166,41 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
                         pass
         
                     pred_imgs, corrupt_imgs, resid_ints = get_pred_random_masks(random_masks_selects,main_img,model,organ_mask)
+                    
                     union_mask = get_candid_mask(resid_ints,random_masks_selects,radius=rad,n_top=n_top,res_thr=res_thr)
-        
+                    # Chunliang Method
+                    cur_mask = np.ones(main_img.shape,dtype = np.uint8)
+                    for iteration in range(0, 3):
+                        posterior_mean, posterior_std = create_uncertainty_map(main_img, pred_imgs, mix_method = 'avg')
+                        
+                        if iteration == 0:
+                            merged_posterior_mean, merged_posterior_std = posterior_mean, posterior_std
+                            mean_std = np.mean(posterior_std)
+                            median_std = np.median(posterior_std)
+                            #print("std", mean_std, median_std)
+
+                        prior_std = np.ones(posterior_mean.shape) * median_std
+                        prior_mean = np.zeros(posterior_mean.shape)
+                        
+                        kl_dist = self_inpaint.kullback_leible_distance_gaussian(posterior_mean, posterior_std, prior_mean, prior_std)
+                        mean_normailization_factor = 1.0 / (np.std(posterior_mean) * 6)
+                        std_normailization_factor = 1.0 / (np.std(posterior_std) * 6)
+                        
+                        new_mask = create_mast_from_kldist(kl_dist, mask_threshold)
+                        if iteration > 0:
+                            added_region = np.where((new_mask==0) & (cur_mask==1), np.uint8(1), np.uint8(0))
+                            merged_posterior_mean = merged_posterior_mean * (1.0 - added_region[...,0]) + posterior_mean * added_region[...,0]
+                            merged_posterior_std = merged_posterior_std * (1.0 - added_region[...,0]) + posterior_std * added_region[...,0]
+                      
+                    
+                    
+                    posterior_mean, posterior_std = merged_posterior_mean, merged_posterior_std
+                    
+                    
+                    
+                    save_normailzed_color_image(path_to_heat_slice,
+                                                posterior_mean * mean_normailization_factor, image_size)
+                    
                     corrupt_img, my_pred = get_pred_candid(main_img,union_mask, model)
                     
                     #tmp_test = np.concatenate((main_img, corrupt_img, my_pred), axis=1)
@@ -109,11 +211,16 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
                     #tmp_test = np.concatenate((main_img, main_img, main_img), axis=1)
                     #cv2.imwrite(os.path.join(subject_write_dir, slice_name), tmp_test*255)
                     cv2.imwrite(os.path.join(subject_write_dir, slice_name), main_img*255)
+                    
+                    empty_array = np.zeros_like(main_img)
+                    cv2.imwrite(path_to_heat_slice, empty_array*255)
             else:
                 #tmp_test = np.concatenate((main_img, main_img, main_img), axis=1)
                 #cv2.imwrite(os.path.join(subject_write_dir, slice_name), tmp_test*255)
                 cv2.imwrite(os.path.join(subject_write_dir, slice_name), main_img*255)
                 
+                empty_array = np.zeros_like(main_img)
+                cv2.imwrite(path_to_heat_slice, empty_array*255)
         FinalTime=time.time()-initTime
         elapse_time.append(FinalTime)
         #print('This case took {} second'.format(FinalTime))
@@ -135,6 +242,7 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_
     
         
     return params
+
 
 
 
