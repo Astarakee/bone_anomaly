@@ -73,7 +73,7 @@ exp_name = exp_name
 inpaint_img_path = os.path.join(inpaint_img_root, exp_name)
 inpaint_subjects = get_sub_dirs(inpaint_img_path)[1:]
 summary_csv_name = 'summary_preds.csv'
-summary_csv_path = os.path.join(inpaint_img_path, summary_csv_name)
+summary_csv_path = os.path.join(write_path_results, summary_csv_name)
 
 # execute prothesis detection
 detection(orig_subjects, inpaint_subjects, res_thr, summary_csv_path)
@@ -92,4 +92,4 @@ exp_params['res_thr'] = res_thr
 exp_params['params_inpaint'] = params_inpaint
 
 json_name = exp_name+'.json'
-save_json(inpaint_img_path, json_name, exp_params)
+save_json(write_path_results, json_name, exp_params)
