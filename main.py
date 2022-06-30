@@ -11,11 +11,11 @@ from libs.paths_dirs_stuff import creat_dir, get_data_list
 
 
 parser = argparse.ArgumentParser(description='Pelvis Bone Anomaly with Autoinpainting')
-#parser.add_argument('--input_dir', type=str, help='Input directory to the nifti volumes', required=True)
-parser.add_argument('--checkpoint_dir', default="/model_weight", type=str, help='Directory to load model weights',required=False)
-#parser.add_argument('--write_path_img', default="./data", type=str, help='Output directory to the 2D images', required=False)
-#parser.add_argument('--write_path_map', default="./data", type=str, help='Output directory to the 2D images', required=False)
-#parser.add_argument('--write_path_results', default="./data", type=str, help='Output directory to store the results', required=False)
+parser.add_argument('--input_dir', type=str, help='Input directory to the nifti volumes', required=True)
+parser.add_argument('--checkpoint_dir', default="./checkpoint", type=str, help='Directory to load model weights',required=False)
+parser.add_argument('--write_path_img', default="./data", type=str, help='Output directory to the 2D images', required=False)
+parser.add_argument('--write_path_map', default="./data", type=str, help='Output directory to the 2D images', required=False)
+parser.add_argument('--write_path_results', default="./data", type=str, help='Output directory to store the results', required=False)
 parser.add_argument('--exp_name', default="Pelvis_Anomaly", type=str, help='Output directory to the 2D images',  required=False)
 parser.add_argument('--n_slice', default="70", type=str, help="number of slices to be analized: either 'all' or an 'integer' ", required=False)
 parser.add_argument('--step_size', default=1, type=int, help="interval between slices",  required=False)
@@ -25,22 +25,28 @@ args = parser.parse_args()
 
 
 # set variables
-nifti_dir = "/input"
-data_path = "/data/"
-
+nifti_dir = args.input_dir
+write_path_img = args.write_path_img
+write_path_map = args.write_path_map
+write_path_results = args.write_path_results
 exp_name = args.exp_name
 checkpoint_dir = args.checkpoint_dir
 n_slice = args.n_slice
 step_size = args.step_size
 res_thr = args.res_thr
 
+grid_size = 32
+overlap_factor = 16
+batch_size = 2
+mix_method = "avg"
+image_org_hsv = False
 
 
 
 # set fixed params
-write_path_img = os.path.join(data_path, 'data_2d/image')
-write_path_map = os.path.join(data_path, 'data_2d/map')
-write_path_results = os.path.join(data_path, 'results')
+write_path_img = os.path.join(write_path_img, 'data_2d/image')
+write_path_map = os.path.join(write_path_map, 'data_2d/map')
+write_path_results = os.path.join(write_path_results, 'results')
 min_bound_img = -300
 max_bound_img = 700
 img_dim1 = 256
@@ -53,17 +59,22 @@ creat_dir(write_path_map)
 n_subject = len(subject_paths)
 img_path = write_path_img
 field_path = write_path_map
+num_iteration = 5
+refind_mask_threshold = 5
+
 
 
 
 # executing 2D image preparation
-execute_2d_writer(subject_paths, n_subject, write_path_img, min_bound_img, max_bound_img, n_slice, step_size, img_dim1, img_dim2)
-execute_2d_writer(subject_paths, n_subject, write_path_map, min_bound_map, max_bound_map, n_slice, step_size, img_dim1, img_dim2)
+#execute_2d_writer(subject_paths, n_subject, write_path_img, min_bound_img, max_bound_img, n_slice, step_size, img_dim1, img_dim2)
+#execute_2d_writer(subject_paths, n_subject, write_path_map, min_bound_map, max_bound_map, n_slice, step_size, img_dim1, img_dim2)
 print('\n'*3, '2D slice preparation is done!')
 print('\n'*3, 'Anomaly detection is about to start ...')
 
 # executing the auto-inpainting procedure
-params_inpaint = auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_dir)
+params_inpaint = auto_inpaint(write_path_results, exp_name, img_path, field_path, \
+                 checkpoint_dir, grid_size, overlap_factor, batch_size, \
+                     mix_method, image_org_hsv, num_iteration, refind_mask_threshold)
 
 # set fixed params for detection
 orig_subjects = get_sub_dirs(write_path_img)[1:]
