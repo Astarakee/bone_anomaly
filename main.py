@@ -66,8 +66,8 @@ refind_mask_threshold = 5
 
 
 # executing 2D image preparation
-#execute_2d_writer(subject_paths, n_subject, write_path_img, min_bound_img, max_bound_img, n_slice, step_size, img_dim1, img_dim2)
-#execute_2d_writer(subject_paths, n_subject, write_path_map, min_bound_map, max_bound_map, n_slice, step_size, img_dim1, img_dim2)
+execute_2d_writer(subject_paths, n_subject, write_path_img, min_bound_img, max_bound_img, n_slice, step_size, img_dim1, img_dim2)
+execute_2d_writer(subject_paths, n_subject, write_path_map, min_bound_map, max_bound_map, n_slice, step_size, img_dim1, img_dim2)
 print('\n'*3, '2D slice preparation is done!')
 print('\n'*3, 'Anomaly detection is about to start ...')
 
