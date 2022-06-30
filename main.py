@@ -55,6 +55,7 @@ max_bound_map = 3000
 subject_paths = get_data_list(nifti_dir, '.nii.gz')
 creat_dir(write_path_img)
 creat_dir(write_path_map)
+creat_dir(write_path_results)
 n_subject = len(subject_paths)
 img_path = write_path_img
 field_path = write_path_map
