@@ -12,17 +12,19 @@ Clone the git project:
 $ https://github.com/Astarakee/bone_anomaly.git
 ```
 
-Create a virtual environment and install the requirements:
+Change the directory into the cloned folder:
 
 ```
-$ conda create -f environment.yml
+cd bone_anomaly
+```
+The repo contains three branches. The one that is Dockerized
+and contains both models are named as "kl_docker".
+Therefore, swith to the branch by typing:
+
+```
+git checkout kl_docker
 ```
 
-Activate the newly created environment:
-
-```
-$ conda activate pelvis_unsupervised_anomaly
-```
 
 ## Usage:
 
