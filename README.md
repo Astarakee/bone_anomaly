@@ -72,4 +72,8 @@ To build the docker image, run the following command inside the repo:
 
 And then: 
 
+<<<<<<< HEAD
 `docker run -v INPUT_FOLDER:/input -v OUTPUT_FOLDER:/data bone-anomaly` 
+=======
+`docker run -v INPUT_FOLDER:/input -v OUTPUT_FOLDER:/data bone-anomaly`
+>>>>>>> b7759abba6d6e6b8e2071c6a764aef0ef10cf35f
