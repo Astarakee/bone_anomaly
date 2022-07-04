@@ -1,5 +1,9 @@
 # Anomaly detection of pelvis bone prothesis by AutoInpainting 
 
+This repo contanins two different methods to detect the artifical prothesis in the pelvis region.
+While both methods are built upon inpainting strategy, they are fundamentally different from each other.
+Both methods can be executed with a single command that is explained in the following.
+
 ## set-up
 
 Clone the git project:
