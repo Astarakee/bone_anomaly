@@ -76,9 +76,9 @@ Please note the computational time of the second approach is much more than firs
 
 Within the "OUTPUT_FOLDER" two main directory will be created:
 
-1 - data_2d: This will consists of the prepared 2D images to be analyzed.
-2 - results: This includes the inpainted images as well as the heating maps for each subjects separately.
-Please note within the "results" folder, one .json file and one .csv file will be stored.
+1 - data_2d: This will consists of the prepared 2D images to be analyzed. \
+2 - results: This includes the inpainted images as well as the heating maps for each subjects separately. \
+Please note within the "results" folder, one .json file and one .csv file will be stored. \
 The .json file saves a summary of the model params and the .csv files represent the predicted
 class label of processing algorithm. In particular, for each subject it indicated a binary
 value [0, 1] which stands for the absence(0) or presence(1) of prothesis.
