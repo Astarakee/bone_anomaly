@@ -4,6 +4,7 @@ from libs.paths_dirs_stuff import get_sub_dirs
 from libs.write_slice import execute_2d_writer
 from libs.json_stuff import load_json, save_json
 from libs.autoinpaint import auto_inpaint, detection
+from libs.autoinpaint_kl import auto_inpaint_kl
 from libs.paths_dirs_stuff import creat_dir, get_data_list 
 
 
@@ -20,6 +21,7 @@ parser.add_argument('--exp_name', default="Pelvis_Anomaly", type=str, help='Outp
 parser.add_argument('--n_slice', default="70", type=str, help="number of slices to be analized: either 'all' or an 'integer' ", required=False)
 parser.add_argument('--step_size', default=1, type=int, help="interval between slices",  required=False)
 parser.add_argument('--res_thr', default=400, type=int, help="threshold value",  required=False)
+parser.add_argument('--kl_div', default=False, action='store_true', help="Using the KL divergence inpainting option", required=False)
 args = parser.parse_args()
 
 
@@ -28,18 +30,20 @@ args = parser.parse_args()
 nifti_dir = "/input"
 data_path = "/data/"
 
+
 exp_name = args.exp_name
 checkpoint_dir = args.checkpoint_dir
 n_slice = args.n_slice
 step_size = args.step_size
 res_thr = args.res_thr
+kl_div = args.kl_div
+
 
 grid_size = 32
 overlap_factor = 16
 batch_size = 2
 mix_method = "avg"
 image_org_hsv = False
-
 
 
 # set fixed params
@@ -63,8 +67,6 @@ num_iteration = 5
 refind_mask_threshold = 5
 
 
-
-
 # executing 2D image preparation
 execute_2d_writer(subject_paths, n_subject, write_path_img, min_bound_img, max_bound_img, n_slice, step_size, img_dim1, img_dim2)
 execute_2d_writer(subject_paths, n_subject, write_path_map, min_bound_map, max_bound_map, n_slice, step_size, img_dim1, img_dim2)
@@ -72,9 +74,12 @@ print('\n'*3, '2D slice preparation is done!')
 print('\n'*3, 'Anomaly detection is about to start ...')
 
 # executing the auto-inpainting procedure
-params_inpaint = auto_inpaint(write_path_results, exp_name, img_path, field_path, \
-                 checkpoint_dir, grid_size, overlap_factor, batch_size, \
-                     mix_method, image_org_hsv, num_iteration, refind_mask_threshold)
+if kl_div == False:
+    params_inpaint = auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_dir)
+else:
+    params_inpaint = auto_inpaint_kl(write_path_results, exp_name, img_path, field_path, \
+                     checkpoint_dir, grid_size, overlap_factor, batch_size, \
+                         mix_method, image_org_hsv, num_iteration, refind_mask_threshold)
 
 # set fixed params for detection
 orig_subjects = get_sub_dirs(write_path_img)[1:]

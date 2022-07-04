@@ -99,7 +99,7 @@ def kullback_leible_distance_histogram(input_data1, input_data2):
 
 
 def pre_process_image(input_image):
-    processed_image = cv2.resize(input_image,(512,512))
+    processed_image = cv2.resize(input_image,(256,256))
     processed_image = deepcopy(processed_image)
     processed_image =  processed_image/255.0
     return processed_image
@@ -121,14 +121,11 @@ def create_uncertainty_map(input_image, grid_size, over_sample_factor, batch_siz
     pred_imgs = model.predict([images, paint_masks], batch_size=batch_size, verbose=0)
     stitched_images = stitchTiledImageMaskSeries(pred_imgs, stitch_masks, grid_size=grid_size,
                                                  step_length=grid_size / over_sample_factor)
-    if input_hsv is None:
-        diff_slice_all = np.zeros(stitched_images.shape, np.float)
-    else:
-        diff_slice_all = np.zeros(stitched_images.shape[0:3], np.float)
+    diff_slice_all = []
     for i in range(stitched_images.shape[0]):
         diff_slice = stitched_images[i] - input_image[0, ...]
-        diff_slice_all[i] = diff_slice
-
+        diff_slice_all.append(diff_slice)
+    diff_slice_all = np.array(diff_slice_all)
     diff_mean = np.mean(diff_slice_all, axis=0)
     if mix_method == 'sqrt':
         diff_mean = np.square(diff_mean)

@@ -1,36 +1,89 @@
 import os
 import cv2
+import json
 import time
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from copy import deepcopy
-from libs import self_inpaint
 import matplotlib.pyplot as plt
+from libs import self_inpaint
 from libs.tools import get_sum_int
 from scipy.ndimage import morphology
 from libs.img_utils import load_img_array
 from libs.unet_model import InpaintingUnet
-from libs.anomaly_tools import get_organ_mask
-from libs.batch_test_new import create_mast_from_kldist, binarize_label
 from libs.paths_dirs_stuff import get_data_list, get_sub_dirs, creat_dir
-from libs.batch_test_new import create_mast_from_level_set_seg, save_normailzed_color_image
+from libs.anomaly_tools import get_pred_candid, get_pred_random_masks, get_organ_mask
+from libs.anomaly_tools import gen_random_masks_in_lung, get_candid_mask,get_circle_candids
 
 # GPU memory setting
 # physical_devices = tf.config.list_physical_devices('GPU') 
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+def create_uncertainty_map(input_image, pred_imgs, mix_method):
+    diff_slice_all = []
+    for i in range(len(pred_imgs)):
+        diff_slice = pred_imgs[i] - input_image
+        diff_slice_all.append(diff_slice)
+    diff_slice_all = np.array(diff_slice_all)    
+    diff_mean = np.mean(diff_slice_all, axis=0)
+    if mix_method == 'sqrt':
+        diff_mean = np.square(diff_mean)
+        diff_mean = np.sqrt(np.sum(diff_mean, axis=-1))
+    elif mix_method == "avg":
+        diff_mean = np.mean(diff_mean, axis=-1)
+
+    diff_std = np.std(diff_slice_all, axis=0)
+    if mix_method == 'sqrt':
+        diff_std = np.square(diff_std)
+        diff_std = np.sqrt(np.sum(diff_std, axis=-1))
+    elif mix_method == "avg":
+        diff_std = np.mean(diff_std, axis=-1)
+    diff_std += np.ones(diff_std.shape) * 0.000001 #to avoid divide by zero
+    
+    return diff_mean, diff_std
+
+
+def save_normailzed_color_image(file_name, image_array, image_size):
+    image_array = image_array * 255
+    if len(image_array.shape) == 3:
+        output_array = np.flip(image_array, axis=-1)
+    else:
+        output_array = np.zeros((image_size,image_size,3))
+        output_array[..., 0] = image_array
+        output_array[..., 2] = -image_array
+    cv2.imwrite(file_name, output_array)    
+    return None
+    
 
 
 DILATION_SIZE = 3
 MaskThreshold = 16
 mask_threshold = MaskThreshold
 
+def binarize_label(inputmask, threshold_value=0.5):
+    thresholded = np.where(inputmask > threshold_value, np.uint8(1), np.uint8(0))
+    return thresholded
+
+def create_mast_from_kldist(kl_dist, threshold=30, erode=False):
+    if len(kl_dist.shape) > 2:
+        kl_dist = np.average(kl_dist, axis=-1)
+    kl_dist = np.expand_dims(kl_dist, axis=-1)
+    mask = binarize_label(kl_dist, threshold)
+    if erode is True:
+        erode_kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.erode(mask[...,0], erode_kernel, iterations=1)
+        mask = np.expand_dims(mask, axis=-1)
+    mask = np.concatenate((mask, mask, mask), axis=-1)
+    dialate_kernel = np.ones((DILATION_SIZE, DILATION_SIZE), np.uint8)
+    dialate_kernel[0, 0] = dialate_kernel[0, DILATION_SIZE - 1] = dialate_kernel[DILATION_SIZE - 1, 0] = dialate_kernel[
+        DILATION_SIZE - 1, DILATION_SIZE - 1] = 0
+    diliated = cv2.dilate(mask, dialate_kernel, iterations=1)
+    mask = 1 - diliated
+    return mask
 
 
-def auto_inpaint(write_path_results, exp_name, img_path, field_path, \
-                 checkpoint_dir, grid_size, overlap_factor, batch_size, \
-                     mix_method, image_org_hsv, num_iteration, refind_mask_threshold):
+
+def auto_inpaint(write_path_results, exp_name, img_path, field_path, checkpoint_dir):
 
  
     # Set the exp name
@@ -48,10 +101,18 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, \
     
     ######## Parameters setting 
     
-  
+    rad = 25      # moving circle size
+    n_top_inpaint = 3          # top candidate regions 
+    n_top_circle_select = 5
     image_size = 256
+    interval_idx = 10  # pixel interval for moving windows
+    res_thr = 0.25   # based on circle size normalization 
     n_subjects = len(img_subjects)
     elapse_time = []
+    
+    
+    
+    
     
     
     for ind in range(n_subjects):
@@ -88,129 +149,76 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, \
             organ_mask = np.repeat(organ_mask[:, :, np.newaxis], 3, axis=2).astype('float32')
     
             slice_name = subject_name+'_inpaint_'+str(slice_number)+'.png'
-            slice_name_heatmap = subject_name+'_0_avg_max'+str(slice_number)+'.png'
+            slice_name_heatmap = subject_name+'_KL_avg_'+str(slice_number)+'.png'
             path_to_heat_slice = os.path.join(subject_h_map_dir, slice_name_heatmap)
-
+            n_top = n_top_inpaint   
+            random_masks = gen_random_masks_in_lung(organ_mask, main_img, radius=rad, interval_idx = interval_idx)
+            selects_ind = get_circle_candids(random_masks,main_img, n_top_circle_select)
+            random_masks_selects = [random_masks[ii] for ii in selects_ind]
+            n_random_mask_select = len(random_masks_selects)
             field_sum_int = np.sum(main_field_map)
             #print(field_sum_int)
             if field_sum_int>50: # instead of 0 avoid tiny colon ...
-            
-                fixed_image = main_img
-                cur_mask = np.ones(fixed_image.shape,dtype = np.uint8)
-                
-                for iteration in range(0, 3):
-                    posterior_mean, posterior_std = self_inpaint.create_uncertainty_map(deepcopy(fixed_image),
-                                                                                        grid_size,
-                                                                                        overlap_factor,
-                                                                                        batch_size=batch_size,
-                                                                                        model=model,
-                                                                                        mix_method=mix_method,
-                                                                                        input_hsv=image_org_hsv)
-                    if iteration == 0:
-                        merged_posterior_mean, merged_posterior_std = posterior_mean, posterior_std
-                        mean_std = np.mean(posterior_std)
-                        median_std = np.median(posterior_std)
-                       
-
-                    prior_std = np.ones(posterior_mean.shape) * median_std
-                    prior_mean = np.zeros(posterior_mean.shape)
-
-                    kl_dist = self_inpaint.kullback_leible_distance_gaussian(posterior_mean, posterior_std, prior_mean, prior_std)
-                 
-                    mean_normailization_factor = 1.0 / (np.std(posterior_mean) * 6)
-                    std_normailization_factor = 1.0 / (np.std(posterior_std) * 6)
-                   
-                  
-                   
-                    new_mask = create_mast_from_kldist(kl_dist, mask_threshold)
-                    if iteration > 0:
-                        added_region = np.where((new_mask==0) & (cur_mask==1), np.uint8(1), np.uint8(0))
-                        merged_posterior_mean = merged_posterior_mean * (1.0 - added_region[...,0]) + posterior_mean * added_region[...,0]
-                        merged_posterior_std = merged_posterior_std * (1.0 - added_region[...,0]) + posterior_std * added_region[...,0]
-                    cur_mask = np.minimum(new_mask, cur_mask)
-                    fixed_image = self_inpaint.inpaint_with_mask(deepcopy(main_img), cur_mask, model=model)
-
-                prior_mean, prior_std = self_inpaint.create_uncertainty_map(deepcopy(fixed_image),
-                                                                            grid_size,
-                                                                            overlap_factor,
-                                                                            batch_size=batch_size,
-                                                                            model=model,
-                                                                            mix_method=mix_method,
-                                                                            input_hsv=image_org_hsv)
-
-                posterior_mean, posterior_std = merged_posterior_mean, merged_posterior_std
-
-                # save_normailzed_color_image(output_file.replace(path_to_heat_slice,
-                #                             posterior_mean * mean_normailization_factor)
-                
-                entropy_gain = self_inpaint.entropy_gain_gaussian(posterior_std,prior_std)
-                entropy_normailization_factor = 1.0 / (np.std(entropy_gain) * 6)
-                
-                guarantee_fine_region = 1 - binarize_label(posterior_std, threshold_value=mean_std/2.0)
-                if len(guarantee_fine_region.shape)==2:
-                    guarantee_fine_region = np.expand_dims(guarantee_fine_region, axis=-1)
-                    guarantee_fine_region = np.concatenate((guarantee_fine_region, guarantee_fine_region, guarantee_fine_region), axis=-1)
-
-                visual_mask = deepcopy(cur_mask)
-                
-                for iteration in range(1, num_iteration):
-                    if iteration > 1:
-                        prior_mean, prior_std = self_inpaint.create_uncertainty_map(deepcopy(fixed_image),
-                                                                                    grid_size,
-                                                                                    overlap_factor,
-                                                                                    batch_size=batch_size,
-                                                                                    model=model,
-                                                                                    mix_method=mix_method,
-                                                                                    input_hsv=image_org_hsv)
-                    if iteration==num_iteration-1:
-                        save_normailzed_color_image(path_to_heat_slice,
-                                                    prior_mean * mean_normailization_factor)
-                   
-                    kl_dist = self_inpaint.kullback_leible_distance_gaussian(posterior_mean, posterior_std, prior_mean, prior_std)
+                if n_random_mask_select>0:
+                    if n_top>=n_random_mask_select:
+                        n_top = n_random_mask_select
+                    else:
+                        pass
+        
+                    pred_imgs, corrupt_imgs, resid_ints = get_pred_random_masks(random_masks_selects,main_img,model,organ_mask)
                     
-                    # save_normailzed_grayscale_image(output_file.replace(suffix, "_vkl{}".format(iteration) + suffix),
-                    #                             kl_dist / (12.0))
-                    mask = create_mast_from_kldist(kl_dist, refind_mask_threshold)
-                    visual_mask[...,1] = mask[...,0]
+                    union_mask = get_candid_mask(resid_ints,random_masks_selects,radius=rad,n_top=n_top,res_thr=res_thr)
+                    # Chunliang Method
+                    cur_mask = np.ones(main_img.shape,dtype = np.uint8)
+                    for iteration in range(0, 3):
+                        posterior_mean, posterior_std = create_uncertainty_map(main_img, pred_imgs, mix_method = 'avg')
+                        
+                        if iteration == 0:
+                            merged_posterior_mean, merged_posterior_std = posterior_mean, posterior_std
+                            mean_std = np.mean(posterior_std)
+                            median_std = np.median(posterior_std)
+                            #print("std", mean_std, median_std)
 
-                    fixed_image = self_inpaint.inpaint_with_mask(deepcopy(main_img), mask, model=model)
-                    attempt_mean, attempt_std = self_inpaint.create_uncertainty_map(deepcopy(fixed_image),
-                                                                                    grid_size,
-                                                                                    overlap_factor,
-                                                                                    batch_size=batch_size,
-                                                                                    model=model,
-                                                                                    mix_method=mix_method,
-                                                                                    input_hsv=image_org_hsv)
-
-
-                    kl_dist_attempt = self_inpaint.kullback_leible_distance_gaussian(attempt_mean, attempt_std, prior_mean, prior_std)
-
-                    entropy_gain = self_inpaint.entropy_gain_gaussian(posterior_std, attempt_std)
-                   
-                    # save_normailzed_grayscale_image(output_file.replace(suffix, "_vkl{}_atempt".format(iteration) + suffix),
-                    #                                 (kl_dist_attempt)/ (12.0))
-
-                    mask = create_mast_from_level_set_seg(kl_dist+kl_dist_attempt-entropy_gain*5, cur_mask,
-                                                          threshold=refind_mask_threshold)
-                    mask = np.maximum(mask, guarantee_fine_region)
-
-
-                    # kl_dist_attempt = self_inpaint.kullback_leible_distance_gaussian(attempt_mean, attempt_std, posterior_mean, posterior_std)
-                    # save_normailzed_color_image(output_file.replace(suffix, "_vkl{}_gain".format(iteration) + suffix),
-                    #                             (kl_dist_attempt - kl_dist) / (12.0))
-
-                    # save_normailzed_grayscale_image(output_file.replace(suffix, "_vkl{}_speed".format(iteration) + suffix),
-                    #                             (kl_dist+kl_dist_attempt-entropy_gain*5) / 12.0)
-
-                    fixed_image = self_inpaint.inpaint_with_mask(deepcopy(main_img), mask, model=model)
-                    if iteration==num_iteration-1:
-                        save_normailzed_color_image(os.path.join(subject_write_dir, slice_name), fixed_image)
-                
-
+                        prior_std = np.ones(posterior_mean.shape) * median_std
+                        prior_mean = np.zeros(posterior_mean.shape)
+                        
+                        kl_dist = self_inpaint.kullback_leible_distance_gaussian(posterior_mean, posterior_std, prior_mean, prior_std)
+                        mean_normailization_factor = 1.0 / (np.std(posterior_mean) * 6)
+                        std_normailization_factor = 1.0 / (np.std(posterior_std) * 6)
+                        
+                        new_mask = create_mast_from_kldist(kl_dist, mask_threshold)
+                        if iteration > 0:
+                            added_region = np.where((new_mask==0) & (cur_mask==1), np.uint8(1), np.uint8(0))
+                            merged_posterior_mean = merged_posterior_mean * (1.0 - added_region[...,0]) + posterior_mean * added_region[...,0]
+                            merged_posterior_std = merged_posterior_std * (1.0 - added_region[...,0]) + posterior_std * added_region[...,0]
+                      
+                    
+                    
+                    posterior_mean, posterior_std = merged_posterior_mean, merged_posterior_std
+                    
+                    
+                    
+                    save_normailzed_color_image(path_to_heat_slice,
+                                                posterior_mean * mean_normailization_factor, image_size)
+                    
+                    corrupt_img, my_pred = get_pred_candid(main_img,union_mask, model)
+                    
+                    #tmp_test = np.concatenate((main_img, corrupt_img, my_pred), axis=1)
+                    #cv2.imwrite(os.path.join(subject_write_dir, slice_name), tmp_test*255)
+                    #plt.imshow(tmp_test)  
+                    cv2.imwrite(os.path.join(subject_write_dir, slice_name), my_pred*255)
+                else:
+                    #tmp_test = np.concatenate((main_img, main_img, main_img), axis=1)
+                    #cv2.imwrite(os.path.join(subject_write_dir, slice_name), tmp_test*255)
+                    cv2.imwrite(os.path.join(subject_write_dir, slice_name), main_img*255)
+                    
+                    empty_array = np.zeros_like(main_img)
+                    cv2.imwrite(path_to_heat_slice, empty_array*255)
             else:
                 #tmp_test = np.concatenate((main_img, main_img, main_img), axis=1)
                 #cv2.imwrite(os.path.join(subject_write_dir, slice_name), tmp_test*255)
-                cv2.imwrite(os.path.join(subject_write_dir, slice_name), main_img*255)              
+                cv2.imwrite(os.path.join(subject_write_dir, slice_name), main_img*255)
+                
                 empty_array = np.zeros_like(main_img)
                 cv2.imwrite(path_to_heat_slice, empty_array*255)
         FinalTime=time.time()-initTime
@@ -221,21 +229,17 @@ def auto_inpaint(write_path_results, exp_name, img_path, field_path, \
     
                 
     params = {}
-
-
-
+    params['circle_rad'] = rad
     params['data_path'] = img_path
-    params['grid_size'] = grid_size
-    params['mix_method'] = mix_method
-    params['batch_size'] = batch_size
     params['image_size'] = image_size
     params['field_path'] = field_path
-    params['image_org_hsv'] = image_org_hsv
-    params['num_iteration'] = num_iteration
-    params['overlap_factor'] = overlap_factor
+    params['circle_area_thr'] = res_thr
+    params['interval_idx'] = interval_idx
+    params['n_top_candidate'] = n_top_inpaint
     params['model_weight_path'] = checkpoint_dir
     params['elapsed_time_per_subject'] = elapse_time
-    params['refind_mask_threshold'] = refind_mask_threshold
+    params['n_top_circle_select'] = n_top_circle_select
+    
         
     return params
 

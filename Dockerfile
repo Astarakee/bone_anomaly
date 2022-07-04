@@ -16,4 +16,4 @@ COPY main.py main.py
 ## DOWNLOAD Pre-trained weights
 RUN gdown https://drive.google.com/uc?id=1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr
 RUN unzip model_weight.zip
-CMD ["python","main.py"]
+ENTRYPOINT ["python","main.py"]
