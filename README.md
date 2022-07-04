@@ -25,46 +25,45 @@ Therefore, swith to the branch by typing:
 git checkout kl_docker
 ```
 
+To build the docker image, run the following command: 
+
+```
+docker build . -t bone-anomaly
+```
+
+It will install the required packages and libraries, create the required folders and
+download the weights of the trained model to be used for the inference phase.
 
 ## Usage:
 
-In the main directory type
+After the installaiton, to run the code for the inference phase:
 
 ```
-python main.py -h
-```
-This will return the list of arguments that are required by the user.
-Mandatory input is:
-
-```
-"--input_dir" : the directory to the input nifti volumes that are going to be processed and analyzed.
+docker run -v INPUT_FOLDER:/input -v OUTPUT_FOLDER:/data bone-anomaly
 ```
 
-There exist also some other optional inputs that may not be changed. The current values are the optial ones.
+Here "INPUT_FOLDER" and "OUTPUT_FOLDER" should be modified. In specific, the  "INPUT_FOLDER"
+must be a directory containing the nifti files. 
+The structure of "INPUT_FOLDER" should be like:
 
 ```
-"n_slice": "70" : The slices to be analyzed.
-"step_size": 1  : The step size between the slices.
-"res_thr": 400  : Threshold value.
+/data/INPUT_FOLDER/
+        Subject1.nii.gz
+        Subject2.nii.gz
+        ....
+        SubjectN.nii.gz
 ```
+Please note that there is no restriction for the filename of each subjects.
 
+The "OUTPUT_FOLDER" should be an empty folder to store the model outputs.
 
-The following optional params defines where the image data, logs and result summary to be stored:
+For example, it can be:
 
 ```
-"write_path_img": "./data/data_2d/image/" :  Dir to store the 2D preprocessed slices.
-"write_path_map": "./data/data_2d/map/"   :  Dir to store the 2D preprocessed binary maps.
-"write_path_results": "./data/results/"   :  Dir to store the final results. This will include the inpainted images, logs of details, and the final .csv file to present the class labels of predictions.
+docker run -v /home/data/pelvis:/input -v /home/data/pelvis_results:/data bone-anomaly
 ```
 
 
-Finally to run the code in the terminal, do:
-
-```
-In the main directory, within terminal, type:
-python main.py --input_dir 'dir to nifti data'
-
-```
 
 ## The model checkpoints can be downloaded from the following link:
 (https://drive.google.com/file/d/1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr/view?usp=sharing)
