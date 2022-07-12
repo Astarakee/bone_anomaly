@@ -86,3 +86,14 @@ value [0, 1] which stands for the absence(0) or presence(1) of prothesis.
 
 ## Finally, the model checkpoints can be downloaded from the following link:
 (https://drive.google.com/file/d/1IyI7uthpWAHgzDM3R3r99-X6UqOS6Jlr/view?usp=sharing)
+
+
+# Run Inference on Docker Container
+
+To build the docker image, run the following command inside the repo: 
+
+`docker build . -t bone-anomaly`
+
+And then: 
+
+`docker run -v INPUT_FOLDER:/input -v OUTPUT_FOLDER:/data bone-anomaly` 
